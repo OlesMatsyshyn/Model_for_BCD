@@ -1,12 +1,13 @@
 % System initialization
 %% Define the strained hoppings and the parameters of the Hamiltonian
-t1 = 1;       % In the eV units
-t2 = 0.3;       % In the eV units
+t1x = 1;       % In the eV units
+t1y = 0.8;       % In the eV units
+t2  = 0.;     % In the eV units
 alpha_g = 0.3;% In the eV units
 mu = -1;      % chemical potential
 U = 0.75;     % Cooper pairs coupling strength. Yanase has 1.5 of gamma_0 for graphene.                       
 
-lE = 0.3;
+lE = 0.1;
 
 % U      |      Tc
 % --------------------
@@ -18,28 +19,28 @@ lE = 0.3;
 hx = 0;
 hy = 0;
 hz = 0;
-Temp = 0.1;% The system temperature
+Temp = 0.01;% The system temperature
 
 fFD  = @(x) 1/2-tanh(0.5*(x)/Temp)/2; % Fermi-Dirac function
 dfFD = @(x) -(0.25).*sech(0.5*(x)/Temp).^2; % We should later divide by Temp
 
 % Grid density
-nx = 409;
-ny = 400;
+nx = 2609;
+ny = 2600;
 q = 0.6;
 % The f of the strained graphene
-xik  = @(kx,ky) -2*t1*(cos(kx)+cos(3*ky))+4*t2*cos(kx).*cos(ky)-mu;
+xik  = @(kx,ky) -2*(t1x*cos(kx)+t1y*cos(ky))+4*t2*cos(kx).*cos(ky)-mu;
 gkx  = @(kx,ky) -alpha_g*sin(ky);
 gky  = @(kx,ky)  alpha_g*sin(kx);
 gkz  = @(kx,ky) lE * cos(kx).*cos(ky);
 
 % Derivative w.r.t. x
-dxxik  = @(kx,ky) 2*t1*sin(kx)-4*t2*sin(kx).*cos(ky);
+dxxik  = @(kx,ky) 2*t1x*sin(kx)-4*t2*sin(kx).*cos(ky);
 dxgkx  = @(kx,ky) 0;
 dxgky  = @(kx,ky) alpha_g*cos(kx);
 dxgkz  = @(kx,ky) -lE * sin(kx).*cos(ky);
 % Derivative w.r.t. y
-dyxik  = @(kx,ky) 3*2*t1*sin(3*ky)-4*t2*cos(kx).*sin(ky);
+dyxik  = @(kx,ky) 2*t1y*sin(ky)-4*t2*cos(kx).*sin(ky);
 dygkx  = @(kx,ky) -alpha_g*cos(ky);
 dygky  = @(kx,ky) 0;
 dygkz  = @(kx,ky) -lE * cos(kx).*sin(ky);
@@ -68,27 +69,30 @@ dxH_BdG = @(kx,ky,q)[dxH_N(kx+q,ky), zeros(2,2)  ;
 dDH_BdG= [zeros(2,2), 1j*sy ;
           -1j*sy    , zeros(2,2)];
 
-
 nbands = length(dDH_BdG);
 nebands = fix(nbands/2);
-
 
 a1 = [2*pi, 0];
 a2 = [0, 2*pi];
 
 v_table = zeros (nebands, nebands, 2); 
-energy  = zeros (nebands, nx+1, ny+1);
+energy  = zeros (nx+1, ny+1, nebands);
 BCD     = zeros(2,2,2);
+BCD2    = zeros(2,2,2);
 BCDD    = zeros(nx+1,ny+1,2,2,2);
 for i = 0 : nx
     for j = 0 : ny
         k = [-pi,-pi] + (i/nx) * a1 + (j/ny) * a2;
         [Vec,en] = eigenshuffle(H_N(k(1),k(2)));
-        energy(:,i+1,j+1) = en(:); % band energy at k
+        energy(i+1,j+1,:) = en(:); % band energy at k
         for n = 1 : nebands
             for m = 1 : nebands
                 v_table(n,m,1) = Vec(:,n)'*dxH_N(k(1),k(2))*Vec(:,m);
                 v_table(n,m,2) = Vec(:,n)'*dyH_N(k(1),k(2))*Vec(:,m);
+            end
+        end
+        for n = 1 : nebands
+            for m = 1 : nebands
                 if n == m
                     continue
                 end
@@ -99,9 +103,14 @@ for i = 0 : nx
                                 + (v_table(n,n,alpha)*dfFD(en(n))-v_table(m,m,alpha)*dfFD(en(m)))*...
                                 v_table(n,m,beta)*v_table(m,n,gamma)/(en(n)-en(m))^2;
 
+                            BCD2(alpha,beta,gamma) = BCD2(alpha,beta,gamma)+...
+                                + v_table(n,n,alpha)*dfFD(en(n))*...
+                                (v_table(n,m,beta)*v_table(m,n,gamma)-v_table(m,n,beta)*v_table(n,m,gamma))/(en(n)-en(m))^2;
+
                             BCDD(i+1,j+1,alpha,beta,gamma) = BCDD(i+1,j+1,alpha,beta,gamma)+...
-                                + (v_table(n,n,alpha)*dfFD(en(n))-v_table(m,m,alpha)*dfFD(en(m)))*...
-                                v_table(n,m,beta)*v_table(m,n,gamma)/(en(n)-en(m))^2;
+                                + v_table(n,n,alpha)*dfFD(en(n))*...
+                                (v_table(n,m,beta)*v_table(m,n,gamma)-v_table(m,n,beta)*v_table(n,m,gamma))/(en(n)-en(m))^2;
+
                         end
                     end
                 end
@@ -111,10 +120,14 @@ for i = 0 : nx
 end
 dkxdky = 1/(nx*ny); % dkx dky / (2*pi)^2
 BCD = BCD * dkxdky/Temp;
-
-surf(squeeze(energy(1,:,:)))
+figure
+surf(energy(:,:,1))
 hold on
-surf(squeeze(energy(1,:,:)))
+surf(energy(:,:,2))
+figure
+hold on
+plot(energy(fix(end/2),:,1))
+plot(energy(fix(end/2),:,2))
 % Dq = qx*0+0.1; % seed value
 % Jq = qx*0;
 % nqx = 30;
