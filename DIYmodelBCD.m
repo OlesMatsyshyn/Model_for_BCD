@@ -2,12 +2,12 @@
 %% Define the strained hoppings and the parameters of the Hamiltonian
 t1x = 1;       % In the eV units
 t1y = 1;       % In the eV units
-t2  = 0.;     % In the eV units
 alpha_g = 0.3;% In the eV units
-mu = -1;      % chemical potential
-U = 0.75;     % Cooper pairs coupling strength. Yanase has 1.5 of gamma_0 for graphene.                       
-
-lE = 0.1; % to split the bands
+beta_D  = -0.2;
+delta   = 0.25;
+mu      = -1;      % chemical potential
+U       = 0.75;     % Cooper pairs coupling strength. Yanase has 1.5 of gamma_0 for graphene.                       
+lE      = 0.1; % to split the bands
 
 % U      |      Tc
 % --------------------
@@ -16,33 +16,32 @@ lE = 0.1; % to split the bands
 % 0.90   |     0.110
 % 0.75   |     0.035
 
-hx = 0;
-hy = 0;
-hz = 0;
 Temp = 0.01;% The system temperature
-
 fFD  = @(x) 1/2-tanh(0.5*(x)/Temp)/2; % Fermi-Dirac function
 dfFD = @(x) -(0.25).*sech(0.5*(x)/Temp).^2; % We should later divide by Temp
 
-% Grid density
-nx = 609;
-ny = 600;
+% Grid density, lattice and reciprocal vectors
+nx = 409;
+ny = 400;
+a1 = [2*pi, 0];
+a2 = [0, 2*pi];
+
 % The f of the strained graphene
-xik  = @(kx,ky) -2*(t1x*cos(kx)+t1y*cos(ky))+4*t2*cos(kx).*cos(ky)-mu;
-gkx  = @(kx,ky) -alpha_g*sin(ky);
-gky  = @(kx,ky)  alpha_g*sin(kx);
-gkz  = @(kx,ky) lE * cos(kx).*cos(ky);
+xik  = @(kx,ky) -2*(t1x*cos(kx)+t1y*cos(ky))-mu;
+gkx  = @(kx,ky) -alpha_g*sin(ky) - beta_D*sin(kx);
+gky  = @(kx,ky)  alpha_g*sin(kx) + beta_D*sin(ky);
+gkz  = @(kx,ky) lE * cos(kx).*cos(ky)+delta*(sin(kx)-sin(ky));
 
 % Derivative w.r.t. x
-dxxik  = @(kx,ky) 2*t1x*sin(kx)-4*t2*sin(kx).*cos(ky);
-dxgkx  = @(kx,ky) 0;
-dxgky  = @(kx,ky) alpha_g*cos(kx);
-dxgkz  = @(kx,ky) -lE * sin(kx).*cos(ky);
+dxxik  = @(kx,ky) 2*t1x*sin(kx);
+dxgkx  = @(kx,ky) -beta_D*cos(kx);
+dxgky  = @(kx,ky)  alpha_g*cos(kx);
+dxgkz  = @(kx,ky) -lE * sin(kx).*cos(ky)+delta*cos(kx);
 % Derivative w.r.t. y
-dyxik  = @(kx,ky) 2*t1y*sin(ky)-4*t2*cos(kx).*sin(ky);
+dyxik  = @(kx,ky) 2*t1y*sin(ky);
 dygkx  = @(kx,ky) -alpha_g*cos(ky);
-dygky  = @(kx,ky) 0;
-dygkz  = @(kx,ky) -lE * cos(kx).*sin(ky);
+dygky  = @(kx,ky) beta_D*cos(ky);
+dygkz  = @(kx,ky) -lE * sin(ky).*cos(kx)-delta*cos(ky);
 % Pauli matrises
 s0 = [1,  0 ;
       0 , 1];
@@ -53,8 +52,8 @@ sy = [0 ,-1j;
 sz = [1,  0;
       0 ,-1];
 
-H_N   = @(kx,ky) xik(kx,ky)*s0 + (gkx(kx,ky)-hx)*sx + (gky(kx,ky)-hy)*sy + (gkz(kx,ky)-hz)*sz;
-H_NT  = @(kx,ky) xik(kx,ky)*s0 + (gkx(kx,ky)-hx)*sx - (gky(kx,ky)-hy)*sy + (gkz(kx,ky)-hz)*sz;
+H_N   = @(kx,ky) xik(kx,ky)*s0 + gkx(kx,ky)*sx + gky(kx,ky)*sy + gkz(kx,ky)*sz;
+H_NT  = @(kx,ky) xik(kx,ky)*s0 + gkx(kx,ky)*sx - gky(kx,ky)*sy + gkz(kx,ky)*sz;
 
 dxH_N = @(kx,ky) dxxik(kx,ky)*s0 + dxgkx(kx,ky)*sx + dxgky(kx,ky)*sy + dxgkz(kx,ky)*sz;
 dyH_N = @(kx,ky) dyxik(kx,ky)*s0 + dygkx(kx,ky)*sx + dygky(kx,ky)*sy + dygkz(kx,ky)*sz;
@@ -71,45 +70,24 @@ dDH_BdG= [zeros(2,2), 1j*sy ;
 nbands = length(dDH_BdG);
 nebands = fix(nbands/2);
 
-d1 = [1, 0];
-d2 = [0, 1];
 
-a1 = [2*pi, 0];
-a2 = [0, 2*pi];
 
-%% The strain
-th = pi/20;
-epsilon = 0.3;
-sigma = 0.165;
-ep = epsilon*[cos(th)^2 - sigma*sin(th)^2,(1+sigma)*cos(th)*sin(th)   ;
-              (1+sigma)*cos(th)*sin(th)  ,sin(th)^2 - sigma*cos(th)^2];
-% Stain of the space vectors
-SR = eye(2) + ep;
-d1_strained = (SR*d1')';
-d2_strained = (SR*d2')';
-% Stain of the recirocal vectors
-a1_strained = (SR\(a1'))'; % Equivalent to inv(SR)*(a1_star'), but the current vertion is faster
-a2_strained = (SR\(a2'))';
+
 
 v_table = zeros (nebands, nebands, 2); 
 energy  = zeros (nx+1, ny+1, nebands);
 BCD     = zeros(2,2,2);
-BCD2    = zeros(2,2,2);
-BCDD    = zeros(nx+1,ny+1,2,2,2);
-BCDD2    = zeros(nx+1,ny+1,2,2,2);
 for i = 0 : nx
     for j = 0 : ny
-        k = [-pi,-pi] + (i/nx) * a1_strained + (j/ny) * a2_strained;
-        ki = d1_strained(1)*k(1) + d1_strained(2)*k(2);
-        kj = d2_strained(1)*k(1) + d2_strained(2)*k(2);
-        [Vec,en] = eigenshuffle(H_N(ki,kj));
+        k = [-pi,-pi] + (i/nx) * a1 + (j/ny) * a2;
+        [Vec,en] = eigenshuffle(H_N(k(1),k(2)));
         % test that energy(i,j+1,:) = energy(nx+1,j+1,:)?
 
         energy(i+1,j+1,:) = en(:); % band energy at k
         for n = 1 : nebands
             for m = 1 : nebands
-                v_table(n,m,1) = Vec(:,n)'*dxH_N(ki,kj)*Vec(:,m);
-                v_table(n,m,2) = Vec(:,n)'*dyH_N(ki,kj)*Vec(:,m);
+                v_table(n,m,1) = Vec(:,n)'*dxH_N(k(1),k(2))*Vec(:,m);
+                v_table(n,m,2) = Vec(:,n)'*dyH_N(k(1),k(2))*Vec(:,m);
             end
         end
         for n = 1 : nebands
@@ -121,17 +99,6 @@ for i = 0 : nx
                     for beta = 1:2
                         for gamma = 1:2
                             BCD(alpha,beta,gamma) = BCD(alpha,beta,gamma)+...
-                                + (v_table(n,n,alpha)*dfFD(en(n))-v_table(m,m,alpha)*dfFD(en(m)))*...
-                                v_table(n,m,beta)*v_table(m,n,gamma)/(en(n)-en(m))^2;
-
-                            BCD2(alpha,beta,gamma) = BCD2(alpha,beta,gamma)+...
-                                + v_table(n,n,alpha)*dfFD(en(n))*...
-                                (v_table(n,m,beta)*v_table(m,n,gamma)-v_table(m,n,beta)*v_table(n,m,gamma))/(en(n)-en(m))^2;
-
-                            BCDD(i+1,j+1,alpha,beta,gamma) = BCDD(i+1,j+1,alpha,beta,gamma)+...
-                                + (v_table(n,n,alpha)*dfFD(en(n))-v_table(m,m,alpha)*dfFD(en(m)))*...
-                                v_table(n,m,beta)*v_table(m,n,gamma)/(en(n)-en(m))^2;
-                            BCDD2(i+1,j+1,alpha,beta,gamma) = BCDD2(i+1,j+1,alpha,beta,gamma)+...
                                 + v_table(n,n,alpha)*dfFD(en(n))*...
                                 (v_table(n,m,beta)*v_table(m,n,gamma)-v_table(m,n,beta)*v_table(n,m,gamma))/(en(n)-en(m))^2;
 
@@ -142,9 +109,8 @@ for i = 0 : nx
         end
     end
 end
-dkxdky = abs(a1_strained(1)*a2_strained(2)-a1_strained(2)*a2_strained(1))/((2*pi)^2*nx*ny); % dkx dky / (2*pi)^2
+dkxdky = 1/(nx*ny); % dkx dky / (2*pi)^2
 BCD = BCD * dkxdky/Temp;
-BCD2 = BCD2 * dkxdky/Temp;
 figure
 surf(energy(:,:,1),'edgecolor','none')
 hold on
@@ -169,10 +135,8 @@ while discr > 0.01 && ~isnan(discr) && abs(Dq) > 10^(-6) % convergence cryterium
     while discr > 10^(-6) && abs(Dq) > 10^(-5) % convergence cryterium
         for i = 0 : nx
             for j = 0 : ny
-                k = [-pi,-pi] + (i/nx) * a1_strained + (j/ny) * a2_strained;
-                ki = d1_strained(1)*k(1) + d1_strained(2)*k(2);
-                kj = d2_strained(1)*k(1) + d2_strained(2)*k(2);
-                [Vec,Val] = eigenshuffle(H_BdG(ki,kj,0,Dq));
+                k = [-pi,-pi] + (i/nx) * a1 + (j/ny) * a2;
+                [Vec,Val] = eigenshuffle(H_BdG(k(1),k(2),0,Dq));
                 energy(:,i+1,j+1) = Val(:);    % band, at which kx, at which ky;
                 for n = 1 : nbands
                     Dnn(n,i+1,j+1)  = Vec(:,n)'*dDH_BdG*Vec(:,n);
