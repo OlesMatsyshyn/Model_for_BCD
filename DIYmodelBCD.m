@@ -3,10 +3,10 @@
 t1x = 1;       % In the eV units
 t1y = 1;       % In the eV units
 alpha_g = 0.3;% In the eV units
-beta_D  = -0.2;
+beta_D  = -0*0.2;
 delta   = 0.25;
-mu      = -1;      % chemical potential
-U       = 0.75;     % Cooper pairs coupling strength. Yanase has 1.5 of gamma_0 for graphene.                       
+mu      = -3.75;      % chemical potential
+U       = 1.5;     % Cooper pairs coupling strength. Yanase has 1.5 of gamma_0 for graphene.                       
 lE      = 0.1; % to split the bands
 
 % U      |      Tc
@@ -30,7 +30,7 @@ a2 = [0, 2*pi];
 xik  = @(kx,ky) -2*(t1x*cos(kx)+t1y*cos(ky))-mu;
 gkx  = @(kx,ky) -alpha_g*sin(ky) - beta_D*sin(kx);
 gky  = @(kx,ky)  alpha_g*sin(kx) + beta_D*sin(ky);
-gkz  = @(kx,ky) lE * cos(kx).*cos(ky)+delta*(sin(kx)-sin(ky));
+gkz  = @(kx,ky) lE *cos(kx).*cos(ky)+delta*(sin(kx)-sin(ky));
 
 % Derivative w.r.t. x
 dxxik  = @(kx,ky) 2*t1x*sin(kx);
